@@ -20,12 +20,16 @@ print(df["Churn"].value_counts())
 
 df = df.drop(columns=["customerID"], axis=1) # Removing customerID column because we don't need it as we can just use an index
 
-df['TotalCharges'] = pd.to_numeric(df.TotalCharges, errors='coerce')
+df['TotalCharges'] = pd.to_numeric(df.TotalCharges, errors='coerce') # Changing TotalCharges to numeric data
 df.isnull().sum()
 
-df = df.dropna()
+df = df.dropna() # Dropping missing values
 
 print(df.isnull().sum())
+
+df["Churn"] = df["Churn"].map({"Yes": 1, "No": 0}) # Encoding the target
+
+df = pd.get_dummies(df) # Converting all features into numerical data using one-hot encoding
 
 # Feature selection
 
@@ -51,11 +55,14 @@ print(df.isnull().sum())
 # Total Charges: Indicates the customer’s total charges, calculated to the end of the quarter specified above.
 # Churn: Yes = the customer left the company this quarter. No = the customer remained with the company.
 
-features = df[["gender", "SeniorCitizen", "Partner", "Dependents", "tenure", "PhoneService", "MultipleLines",
-               "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies",
-               "Contract", "PaperlessBilling", "PaymentMethod", "MonthlyCharges", "TotalCharges"]].to_numpy()
+# features = df[["gender", "SeniorCitizen", "Partner", "Dependents", "tenure", "PhoneService", "MultipleLines",
+#                "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies",
+#                "Contract", "PaperlessBilling", "PaymentMethod", "MonthlyCharges", "TotalCharges"]].to_numpy()
+#
+# target = df["Churn"].to_numpy()
 
-target = df["Churn"].to_numpy()
+features = df.drop("Churn", axis=1).astype(np.float64).to_numpy()
+target = df["Churn"].to_numpy().astype(np.float64).reshape(-1, 1)
 
 # Standardization (Z-score normalization)
 
@@ -64,7 +71,9 @@ target = df["Churn"].to_numpy()
 
 X = (features - np.mean(features)) / np.std(features)
 
-y = (target - np.mean(target)) / np.std(target)
+# y = (target - np.mean(target)) / np.std(target)
+
+
 
 # Shuffling data
 
@@ -73,7 +82,7 @@ np.random.seed(29)
 np.random.shuffle(indices)
 
 X = X[indices]
-y = y[indices]
+y = target[indices]
 
 # Data Splitting - 80% train, 20% test
 
@@ -85,18 +94,24 @@ y_train, y_test = y[:split], y[split:]
 #     z = X @ theta
 #     return 1 / (1 + np.exp(-z))
 
-def logistic_regression(X, y, lr=0.1, iterations=1000):
+def logistic_regression(X, y, lr=0.01, iterations=1000):
 
     m, n = X.shape
 
     X = np.hstack([np.ones((m, 1)), X])
     y = y.reshape(-1, 1)
-    theta = np.zeros(n+1, 1)
+    theta = np.zeros((n+1, 1))
     costs = []
 
     for i in range(iterations):
 
         z = X @ theta
+
+        # Debugging step
+        # print("X.dtype:", X.dtype)
+        # print("theta.dtype:", theta.dtype)
+        # print("z.dtype:", z.dtype)
+        # print("type(z):", type(z), " type(z[0,0]):", type(z.flatten()[0]))
 
         X_t = np.transpose(X)
 
@@ -106,12 +121,19 @@ def logistic_regression(X, y, lr=0.1, iterations=1000):
 
         cost = -1/iterations * np.mean(y * np.log(preds) + (1 - y) * np.log(1 - preds))
 
-        costs.append[cost]
+        costs.append(cost)
 
-        descent = 1/iterations * X_t * (error)
+        descent = 1/iterations * (X_t @ error)
 
         theta -= lr * descent
 
     return theta, costs
 
 
+theta, costs = logistic_regression(X_train, y_train)
+
+plt.plot(costs)
+plt.xlabel("Iteration")
+plt.ylabel("Cost")
+plt.title("Cost vs Iterations")
+plt.show()
