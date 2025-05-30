@@ -2,14 +2,14 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, classification_report, precision_score, recall_score, f1_score
+from sklearn.linear_model import LogisticRegression
 
 matplotlib.use("TkAgg")
 
 # Data Ingestion
 
 data = "data/WA_Fn-UseC_-Telco-Customer-Churn.csv"
-
-pd.options.display.max_rows = 100
 
 df = pd.read_csv(data)
 
@@ -20,16 +20,35 @@ print(df["Churn"].value_counts())
 
 df = df.drop(columns=["customerID"], axis=1) # Removing customerID column because we don't need it as we can just use an index
 
-df['TotalCharges'] = pd.to_numeric(df.TotalCharges, errors='coerce') # Changing TotalCharges to numeric data
+# Changing TotalCharges to numeric data, we did this because it was in string format and because it would not appear as null values if it had empty strings
+df['TotalCharges'] = pd.to_numeric(df.TotalCharges, errors='coerce')
 df.isnull().sum()
 
 df = df.dropna() # Dropping missing values
 
 print(df.isnull().sum())
 
-df["Churn"] = df["Churn"].map({"Yes": 1, "No": 0}) # Encoding the target
+# Direct encoding the target this is done to the target because if we used one-hot encoding, we would instead get 2 columns:
+# Churn_No   Churn_Yes
+#    1          0
+#    0          1
+# For logistic regression we are trying to predict a binary value and getting 2 columns would be problematic because it wouldn't be a binary value
+df["Churn"] = df["Churn"].map({"Yes": 1, "No": 0})
 
-df = pd.get_dummies(df) # Converting all features into numerical data using one-hot encoding
+# Converting all categorical dat into numerical data using one-hot encoding
+# This is done by creating a new column for each category and then assigning it a binary value. For example:
+# id    colour
+# 1     red
+# 2     blue
+# 3     green
+# 4     blue
+# This would instead get transformed into -
+# id    colour_red      colour_blue     colour_green    colour_blue
+# 1         1                0               0               0
+# 2         0                1               0               0
+# 3         0                0               1               0
+# 4         0                0               0               1
+df = pd.get_dummies(df)
 
 # Feature selection
 
@@ -61,15 +80,25 @@ df = pd.get_dummies(df) # Converting all features into numerical data using one-
 #
 # target = df["Churn"].to_numpy()
 
+# Creating a variable for all the features and removing the Churn as that is our target, not a label.
+# Afterward we convert all the data into the same type so we don't run into any type errors because otherwise some of our data is objects
 features = df.drop("Churn", axis=1).astype(np.float64).to_numpy()
+
+# Here we are using the Churn as the target variable and converting it to the same datatype as the features so again we don't run into type errors
+# We are also reshaping it into a 2d array because before it was just a list and since we are doing matrix multiplication we need so each value has its own row
+# rather than one row with all the values
 target = df["Churn"].to_numpy().astype(np.float64).reshape(-1, 1)
 
 # Standardization (Z-score normalization)
+# We only standardize the features/labels in classification because we want a binary output.
+# If were to standardize the target we would have numbers ranging from 0-1 i.e 0.845 or 0.542 which aren't binary.
+# While we have some binary data in the features it is fine because it creates a consistent scale for all of the featuers.
+# Although it would have been slightly more correct to only standardize the numerical features.
+# Due to the fact we are using a simple algorithm of logistic regression it is fine
+means = np.mean(features, axis=0)
+stds = np.std(features, axis=0)
 
-# mus = np.mean(features, axis=0)
-# sds = np.std(features, axis=0)
-
-X = (features - np.mean(features)) / np.std(features)
+X = (features - means) / stds
 
 # y = (target - np.mean(target)) / np.std(target)
 
@@ -119,21 +148,80 @@ def logistic_regression(X, y, lr=0.01, iterations=1000):
 
         error = preds - y
 
-        cost = -1/iterations * np.mean(y * np.log(preds) + (1 - y) * np.log(1 - preds))
+        cost = -1/m * np.sum(y * np.log(preds) + (1 - y) * np.log(1 - preds))
+
+        gradient = 1/m * (X_t @ error)
 
         costs.append(cost)
 
-        descent = 1/iterations * (X_t @ error)
-
-        theta -= lr * descent
+        theta -= lr * gradient
 
     return theta, costs
 
-
 theta, costs = logistic_regression(X_train, y_train)
 
+def predict(X, theta):
+    X = np.hstack([np.ones((X.shape[0], 1)), X])
+    z = X @ theta
+    return 1 / (1 + np.exp(-z))
+
+threshold = 0.5
+y_preds_probs = predict(X_test, theta)
+y_preds = (y_preds_probs >= threshold).astype(int)
+
+accuracy = np.mean(y_preds == y_test)
+print(f"Accuracy: {accuracy:.4f}")
+
+lambda_manual = 0.1
+clf = LogisticRegression(penalty="l2", C=1/lambda_manual, max_iter=1000, solver="lbfgs")
+clf.fit(X_train, y_train.ravel())
+
+print("sklearn accuracy: ", clf.score(X_test, y_test))
+
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_preds))
+print("\nClassification Report:\n", classification_report(y_test, y_preds))
+
+feature_names = df.drop("Churn", axis=1).columns
+weights = theta.flatten()[1:]
+imp = pd.Series(weights, index=feature_names).sort_values()
+print("Top positive churn drivers:\n", imp.tail(10))
+print("Top negative churn drivers:\n", imp.head(10))
+
+plt.figure()
 plt.plot(costs)
 plt.xlabel("Iteration")
 plt.ylabel("Cost")
 plt.title("Cost vs Iterations")
+
+
+thresholds = np.linspace(0, 1, 101)
+precisions = []
+recalls = []
+f1s = []
+
+for t in thresholds:
+    y_preds = (y_preds_probs >= t).astype(int)
+    precisions.append(precision_score(y_test, y_preds))
+    recalls.append(recall_score(y_test, y_preds))
+    f1s.append(f1_score(y_test, y_preds))
+
+plt.figure()
+plt.plot(thresholds, precisions)
+plt.xlabel("Threshold")
+plt.ylabel("Precision")
+plt.title("Precision vs. Threshold")
+
+
+plt.figure()
+plt.plot(thresholds, recalls)
+plt.xlabel("Threshold")
+plt.ylabel("Recall")
+plt.title("Recall vs. Threshold")
+
+
+plt.figure()
+plt.plot(thresholds, f1s)
+plt.xlabel("Threshold")
+plt.ylabel("F1-Score")
+plt.title("F1-Score vs. Threshold")
 plt.show()
