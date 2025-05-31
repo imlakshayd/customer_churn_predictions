@@ -125,15 +125,28 @@ y_train, y_test = y[:split], y[split:]
 
 def logistic_regression(X, y, lr=0.01, iterations=1000):
 
-    m, n = X.shape
+    m, n = X.shape # Defining m as the number of data points and n has the number of features
 
+    # We are creating another array filled with ones to represent the biases and then stacking it on beside the feature array
+    # This is because our orignal features don't have a bias value so we can add it doing this
+    # Another way to do this is creating a seperate array and doing the dot product because z is techically just a linear function
+    # So z = X @ theta
     X = np.hstack([np.ones((m, 1)), X])
-    y = y.reshape(-1, 1)
+
+
+    # y = y.reshape(-1, 1) reduntant because we reshaped it before
+
+    # Because we added another column for biases for all the features we need to add another column for theta value as well
+    # We initialize them all to zero so all weights can be updated and the extra column is so our shape isn't mismatched for the dot product
     theta = np.zeros((n+1, 1))
+
+    # Initalizing array to capture the cost value at each iteration
     costs = []
 
     for i in range(iterations):
 
+        # Note since we are calculating z for all data points in one go we use X @ theta
+        # If we were doing it for a single example we would use X @ theta_transposed because when doing dot product the shape would be mismatched
         z = X @ theta
 
         # Debugging step
@@ -142,6 +155,10 @@ def logistic_regression(X, y, lr=0.01, iterations=1000):
         # print("z.dtype:", z.dtype)
         # print("type(z):", type(z), " type(z[0,0]):", type(z.flatten()[0]))
 
+        # In the code below we are tranposing X for gradient desecnt function
+        # Getting the predictions and then finding the error so we can update the weights of each feature
+        # Once we have the error we can use it gradient descent and then update values for each feature
+        # We also use the cost function to measure our model so we know gradient descent is working
         X_t = np.transpose(X)
 
         preds = 1 / (1 + np.exp(-z))
@@ -160,8 +177,10 @@ def logistic_regression(X, y, lr=0.01, iterations=1000):
 
 theta, costs = logistic_regression(X_train, y_train)
 
+# Prediction function so we can call to predict future values
 def predict(X, theta):
-    X = np.hstack([np.ones((X.shape[0], 1)), X])
+    m = X.shape[0]
+    X = np.hstack([np.ones((m, 1)), X])
     z = X @ theta
     return 1 / (1 + np.exp(-z))
 
