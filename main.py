@@ -177,20 +177,29 @@ def logistic_regression(X, y, lr=0.01, iterations=1000):
 
 theta, costs = logistic_regression(X_train, y_train)
 
-# Prediction function so we can call to predict future values
+# Prediction function so we can call to predict future values it is just the sigmoid function.
+# In hindsight I should have put this above so I can reuse it when defining logistic regression but its okay.
 def predict(X, theta):
     m = X.shape[0]
     X = np.hstack([np.ones((m, 1)), X])
     z = X @ theta
     return 1 / (1 + np.exp(-z))
 
+# Setting the threshold value or the cutoff of predicting whether the customer will churn or not
 threshold = 0.5
+
+# Getting the probability of churn
 y_preds_probs = predict(X_test, theta)
+
+# Converting probability in a binary value so we can class it
 y_preds = (y_preds_probs >= threshold).astype(int)
 
+
+# Getting accuracy of model and comparing it to test data
 accuracy = np.mean(y_preds == y_test)
 print(f"Accuracy: {accuracy:.4f}")
 
+# Using Sci-kit learn model and implement it
 lambda_manual = 0.1
 clf = LogisticRegression(penalty="l2", C=1/lambda_manual, max_iter=1000, solver="lbfgs")
 clf.fit(X_train, y_train.ravel())
