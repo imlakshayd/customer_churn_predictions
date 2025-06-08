@@ -200,21 +200,38 @@ accuracy = np.mean(y_preds == y_test)
 print(f"Accuracy: {accuracy:.4f}")
 
 # Using Sci-kit learn model and implement it
+# Setting a manual value for lambda, but this isn't needed we could have just used C = lambda (10 or any other number)
+# The parameters in the sci-kit learn we are the following:
+# penalty - This is used to pick which overfitting solution we apply to the model, we don't have for simple models but
+# this model is complex, and we used Ridge's regression otherwise known as L2 as the penalty
+# C - is meant to provide the inverse of the regularization strength if C is a small value then we have a strong regularization
+# but if C is a large value then we have weak regularization
+# max_iter - The max number of iterations for the solver to find the optimal weights
+# solver - This is the optimization algorithm used within logistic regression gradient descent
+# lbfgs is a solver which good for mid-size datasets like ours and leads to faster convergences there are other types but you can pick and choose
 lambda_manual = 0.1
 clf = LogisticRegression(penalty="l2", C=1/lambda_manual, max_iter=1000, solver="lbfgs")
+
+# Training our sci-kit model
+# We use y_train.ravel() because while for manual logistic regression we needed a 2d array for the dot product
+# Sci-kit learn expects the training data to be a 1d array and ravel just transforms it
 clf.fit(X_train, y_train.ravel())
 
+# The following are just getting various metrics to understand our model and evaulate it
 print("sklearn accuracy: ", clf.score(X_test, y_test))
 
 print("Confusion Matrix:\n", confusion_matrix(y_test, y_preds))
 print("\nClassification Report:\n", classification_report(y_test, y_preds))
 
-feature_names = df.drop("Churn", axis=1).columns
-weights = theta.flatten()[1:]
-imp = pd.Series(weights, index=feature_names).sort_values()
-print("Top positive churn drivers:\n", imp.tail(10))
-print("Top negative churn drivers:\n", imp.head(10))
 
+# Feature importance analysis — skip for now until I understand it better
+# feature_names = df.drop("Churn", axis=1).columns
+# weights = theta.flatten()[1:]
+# imp = pd.Series(weights, index=feature_names).sort_values()
+# print("Top positive churn drivers:\n", imp.tail(10))
+# print("Top negative churn drivers:\n", imp.head(10))
+
+# Plotting convergence rate
 plt.figure()
 plt.plot(costs)
 plt.xlabel("Iteration")
@@ -222,7 +239,12 @@ plt.ylabel("Cost")
 plt.title("Cost vs Iterations")
 
 
-thresholds = np.linspace(0, 1, 101)
+# Below we are just testing various thresholds and checking which one is the best
+# Accuracy is lettings us know out of all the predictions how many were true
+# Precision tell use how many predicted churns were actually correct where the greater precision means low rate of false positives
+# Recalls tells use how good our model is finding all the churns, the higher the recall score means how many did our model correctly catch
+# F1 score is provides balanced measure of both precision and recall
+thresholds = np.linspace(0, 1, 101) # Creating 101 even values between 0 and 1 for thresholds
 precisions = []
 recalls = []
 f1s = []
